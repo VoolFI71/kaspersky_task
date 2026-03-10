@@ -9,8 +9,8 @@ import aiofiles
 from fastapi import HTTPException, UploadFile, status
 
 from app.core.settings import Settings
-from app.domain.services.text_statistics import WordStatsBuilder
-from app.infrastructure.excel.xlsx_report_writer import XlsxReportWriter
+from app.domain.services.text_statistics import StatisticsLimitExceeded, WordStatsBuilder
+from app.infrastructure.excel.xlsx_report_writer import ExcelLimitExceeded, XlsxReportWriter
 from app.infrastructure.morphology.russian_lemmatizer import RussianLemmatizer
 
 
@@ -53,7 +53,22 @@ class ReportExportService:
 
         try:
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(process_pool, build_report_file, input_path, output_path)
+            await loop.run_in_executor(
+                process_pool,
+                build_report_file,
+                input_path,
+                output_path,
+                self._settings.max_total_lines,
+                self._settings.max_unique_lemmas,
+                self._settings.excel_max_cell_chars,
+            )
+        except (StatisticsLimitExceeded, ExcelLimitExceeded) as error:
+            Path(input_path).unlink(missing_ok=True)
+            Path(output_path).unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(error),
+            ) from error
         except Exception:
             Path(input_path).unlink(missing_ok=True)
             Path(output_path).unlink(missing_ok=True)
@@ -101,8 +116,22 @@ class ReportExportService:
             return temp_file.name
 
 
-def build_report_file(input_path: str, output_path: str) -> None:
+def build_report_file(
+    input_path: str,
+    output_path: str,
+    max_total_lines: int,
+    max_unique_lemmas: int,
+    excel_max_cell_chars: int,
+) -> None:
     builder = WordStatsBuilder(lemmatizer=RussianLemmatizer())
-    statistics = builder.collect(input_path)
+    statistics = builder.collect(
+        input_path,
+        max_total_lines=max_total_lines,
+        max_unique_lemmas=max_unique_lemmas,
+    )
     writer = XlsxReportWriter()
-    writer.write(statistics=statistics, output_path=output_path)
+    writer.write(
+        statistics=statistics,
+        output_path=output_path,
+        excel_max_cell_chars=excel_max_cell_chars,
+    )
