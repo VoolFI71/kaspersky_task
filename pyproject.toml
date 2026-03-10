@@ -1,0 +1,23 @@
+[project]
+name = "kaspersky"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aiofiles>=24.1.0",
+    "fastapi>=0.116.0",
+    "openpyxl>=3.1.5",
+    "pydantic-settings>=2.10.1",
+    "pymorphy3>=2.0.4",
+    "python-multipart>=0.0.20",
+    "uvicorn[standard]>=0.35.0",
+]
+
+[build-system]
+requires = ["setuptools>=80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+namespaces = true
